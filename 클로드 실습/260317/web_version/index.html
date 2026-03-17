@@ -1,0 +1,400 @@
+<!-- 생성일시: 2026-03-17 -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>손글씨 숫자 인식기</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #1E2A3A;
+            color: white;
+            font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 24px 16px;
+        }
+
+        h1 { font-size: 22px; margin-bottom: 8px; }
+
+        #status {
+            color: #F1C40F;
+            font-size: 13px;
+            margin-bottom: 10px;
+            min-height: 18px;
+        }
+
+        #progress-wrap {
+            width: 320px; height: 6px;
+            background: #2C3E50;
+            border-radius: 3px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+        #progress-bar {
+            height: 100%; width: 0%;
+            background: #2ECC71;
+            transition: width 0.3s;
+        }
+
+        #main {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        #canvas-label { color: #7F8C8D; font-size: 12px; margin-bottom: 5px; }
+
+        #draw-canvas {
+            display: block;
+            border: 2px solid #2ECC71;
+            cursor: crosshair;
+            background: black;
+            touch-action: none;
+        }
+
+        .btn-row {
+            display: flex; gap: 10px;
+            margin-top: 12px;
+            justify-content: center;
+        }
+
+        /* 모델이 보는 이미지 미리보기 */
+        #preview-wrap {
+            margin-top: 12px;
+            text-align: center;
+        }
+        #preview-label { color: #7F8C8D; font-size: 11px; margin-bottom: 4px; }
+        #preview-canvas {
+            border: 1px solid #2ECC71;
+            image-rendering: pixelated; /* 28×28을 선명하게 확대 */
+        }
+
+        button {
+            padding: 8px 24px;
+            border: none; border-radius: 4px;
+            font-size: 14px; font-family: inherit;
+            cursor: pointer;
+        }
+        #clear-btn   { background: #E74C3C; color: white; }
+        #predict-btn { background: #27AE60; color: white; }
+        button:disabled { opacity: 0.4; cursor: default; }
+
+        #result-panel { min-width: 200px; }
+        #result-title { color: #BDC3C7; font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+        #result-digit {
+            font-size: 88px; font-weight: bold;
+            color: #F1C40F; text-align: center;
+            line-height: 1; min-height: 100px;
+        }
+        #confidence { text-align: center; font-size: 13px; margin-bottom: 12px; color: #ECF0F1; }
+
+        #prob-title { color: #7F8C8D; font-size: 11px; font-weight: bold; margin-bottom: 4px; }
+        .bar-row  { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+        .bar-num  { width: 12px; font-size: 11px; text-align: right; }
+        .bar-bg   { width: 150px; height: 13px; background: #2C3E50; }
+        .bar-fill { height: 100%; width: 0%; transition: width 0.2s, background 0.2s; }
+        .bar-pct  { font-size: 10px; color: #7F8C8D; width: 28px; }
+    </style>
+</head>
+<body>
+
+<h1>✏️ 손글씨 숫자 인식기</h1>
+<div id="status">MNIST 데이터 불러오는 중...</div>
+<div id="progress-wrap"><div id="progress-bar"></div></div>
+
+<div id="main">
+
+    <!-- 왼쪽: 그리기 캔버스 -->
+    <div>
+        <div id="canvas-label">숫자를 여기에 그리세요</div>
+        <canvas id="draw-canvas" width="280" height="280"></canvas>
+        <div class="btn-row">
+            <button id="clear-btn"   onclick="clearCanvas()">지우기</button>
+            <button id="predict-btn" onclick="predict()" disabled>인식하기</button>
+        </div>
+
+        <!-- 28×28 미리보기: 모델이 실제로 보는 이미지 확인용 -->
+        <div id="preview-wrap">
+            <div id="preview-label">모델이 보는 이미지 (28×28)</div>
+            <canvas id="preview-canvas" width="28" height="28"
+                    style="width:84px;height:84px;background:black"></canvas>
+        </div>
+    </div>
+
+    <!-- 오른쪽: 결과 패널 -->
+    <div id="result-panel">
+        <div id="result-title">인식 결과</div>
+        <div id="result-digit">?</div>
+        <div id="confidence">신뢰도: -</div>
+        <div id="prob-title">숫자별 확률</div>
+        <div id="prob-bars"></div>
+    </div>
+
+</div>
+
+<script>
+// ── 확률 막대 초기 렌더링 ────────────────────────────────────
+const BAR_COLORS = [
+    '#3498DB','#2ECC71','#E74C3C','#F39C12','#9B59B6',
+    '#1ABC9C','#E67E22','#2980B9','#8E44AD','#27AE60'
+];
+const barFills = [];
+const barPcts  = [];
+
+const barsWrap = document.getElementById('prob-bars');
+for (let i = 0; i < 10; i++) {
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.innerHTML = `
+        <span class="bar-num">${i}</span>
+        <div class="bar-bg">
+            <div class="bar-fill" id="bar${i}" style="background:${BAR_COLORS[i]}"></div>
+        </div>
+        <span class="bar-pct" id="pct${i}">0%</span>
+    `;
+    barsWrap.appendChild(row);
+    barFills.push(document.getElementById(`bar${i}`));
+    barPcts.push(document.getElementById(`pct${i}`));
+}
+
+// ── 캔버스 드로잉 ─────────────────────────────────────────────
+const canvas  = document.getElementById('draw-canvas');
+const ctx     = canvas.getContext('2d');
+const preview = document.getElementById('preview-canvas');
+const pctx    = preview.getContext('2d');
+let drawing   = false;
+let model     = null;
+
+canvas.addEventListener('mousedown',  e => { drawing = true;  drawAt(e.offsetX, e.offsetY); });
+canvas.addEventListener('mousemove',  e => { if (drawing) drawAt(e.offsetX, e.offsetY); });
+canvas.addEventListener('mouseup',    () => { drawing = false; predict(); });
+canvas.addEventListener('mouseleave', () => { drawing = false; });
+
+canvas.addEventListener('touchstart', e => {
+    e.preventDefault(); drawing = true;
+    const t = e.touches[0], r = canvas.getBoundingClientRect();
+    drawAt(t.clientX - r.left, t.clientY - r.top);
+});
+canvas.addEventListener('touchmove', e => {
+    e.preventDefault(); if (!drawing) return;
+    const t = e.touches[0], r = canvas.getBoundingClientRect();
+    drawAt(t.clientX - r.left, t.clientY - r.top);
+});
+canvas.addEventListener('touchend', () => { drawing = false; predict(); });
+
+function drawAt(x, y) {
+    ctx.beginPath();
+    ctx.arc(x, y, 10, 0, Math.PI * 2);
+    ctx.fillStyle = 'white';
+    ctx.fill();
+}
+
+function clearCanvas() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pctx.clearRect(0, 0, 28, 28);
+    document.getElementById('result-digit').textContent = '?';
+    document.getElementById('confidence').textContent = '신뢰도: -';
+    for (let i = 0; i < 10; i++) {
+        barFills[i].style.width = '0%';
+        barFills[i].style.background = BAR_COLORS[i];
+        barPcts[i].textContent = '0%';
+    }
+}
+
+// ── MNIST 데이터 로드 ─────────────────────────────────────────
+// fetch()로 바이너리를 먼저 받은 뒤 Blob URL로 변환 → CORS 캔버스 오염 방지
+const IMAGE_SIZE = 784;
+const NUM_IMAGES = 65000;
+const NUM_TRAIN  = 55000;
+const SPRITE_URL = 'https://storage.googleapis.com/learnjs-data/model-builder/mnist_images.png';
+const LABELS_URL = 'https://storage.googleapis.com/learnjs-data/model-builder/mnist_labels_uint8';
+
+async function loadMnist() {
+    // 이미지와 라벨을 병렬로 fetch
+    const [imgResp, lblResp] = await Promise.all([
+        fetch(SPRITE_URL),
+        fetch(LABELS_URL)
+    ]);
+
+    // 이미지를 Blob URL로 변환하면 로컬 리소스로 취급 → getImageData 안전
+    const imgBlob = await imgResp.blob();
+    const imgUrl  = URL.createObjectURL(imgBlob);
+
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = imgUrl; });
+    URL.revokeObjectURL(imgUrl);
+
+    // 784×65000짜리 캔버스를 통째로 만들면 ~200MB → 브라우저가 빈 데이터 반환
+    // 대신 784×5000 작은 캔버스를 재활용하며 이미지를 청크마다 위로 스크롤해서 읽음
+    const CHUNK = 5000;
+    const tmp   = document.createElement('canvas');
+    tmp.width   = img.naturalWidth;  // 784
+    tmp.height  = CHUNK;             // 5000 (전체 65000이 아닌 청크 크기)
+    const tc    = tmp.getContext('2d');
+
+    const buf = new ArrayBuffer(NUM_IMAGES * IMAGE_SIZE * 4);
+    for (let i = 0; i < NUM_IMAGES / CHUNK; i++) {
+        const view = new Float32Array(buf, i * IMAGE_SIZE * CHUNK * 4, IMAGE_SIZE * CHUNK);
+        // i번째 청크가 캔버스 상단(y=0)에 오도록 이미지를 위로 스크롤
+        tc.drawImage(img, 0, -(i * CHUNK), img.naturalWidth, img.naturalHeight);
+        const pixels = tc.getImageData(0, 0, tmp.width, CHUNK).data;
+        // R 채널만 사용 (흑백 이미지), 0~1로 정규화
+        for (let j = 0; j < pixels.length / 4; j++) view[j] = pixels[j * 4] / 255;
+    }
+
+    // 라벨 로드
+    const lblBuf = await lblResp.arrayBuffer();
+    const labels = new Uint8Array(lblBuf);
+
+    // TF 텐서 생성
+    const xs = tf.tensor4d(
+        new Float32Array(buf, 0, NUM_TRAIN * IMAGE_SIZE),
+        [NUM_TRAIN, 28, 28, 1]
+    );
+    const ys = tf.oneHot(
+        tf.tensor1d(Array.from(labels.slice(0, NUM_TRAIN)), 'int32'), 10
+    );
+    return { xs, ys };
+}
+
+// ── 모델 정의 ─────────────────────────────────────────────────
+function buildModel() {
+    const m = tf.sequential();
+    m.add(tf.layers.conv2d({ inputShape:[28,28,1], filters:32, kernelSize:3, activation:'relu' }));
+    m.add(tf.layers.maxPooling2d({ poolSize:2 }));
+    m.add(tf.layers.conv2d({ filters:64, kernelSize:3, activation:'relu' }));
+    m.add(tf.layers.maxPooling2d({ poolSize:2 }));
+    m.add(tf.layers.flatten());
+    m.add(tf.layers.dense({ units:128, activation:'relu' }));
+    m.add(tf.layers.dense({ units:10,  activation:'softmax' }));
+    m.compile({ optimizer:'adam', loss:'categoricalCrossentropy', metrics:['accuracy'] });
+    return m;
+}
+
+// ── 학습 시작 ─────────────────────────────────────────────────
+async function init() {
+    const statusEl   = document.getElementById('status');
+    const progressEl = document.getElementById('progress-bar');
+    const EPOCHS = 5;
+
+    try {
+        statusEl.textContent = 'MNIST 데이터 다운로드 중... (약 30~60초 소요)';
+        const { xs, ys } = await loadMnist();
+
+        statusEl.textContent = '모델 학습 중...';
+        model = buildModel();
+
+        await model.fit(xs, ys, {
+            epochs: EPOCHS,
+            batchSize: 512,
+            validationSplit: 0.1,
+            callbacks: {
+                onEpochEnd(epoch, logs) {
+                    const pct = Math.round(((epoch + 1) / EPOCHS) * 100);
+                    progressEl.style.width = pct + '%';
+                    statusEl.textContent =
+                        `학습 중... ${epoch+1}/${EPOCHS} 에포크 — 정확도: ${(logs.acc*100).toFixed(1)}%`;
+                }
+            }
+        });
+
+        xs.dispose(); ys.dispose();
+
+        progressEl.style.background = '#F1C40F';
+        statusEl.textContent = '준비 완료! 캔버스에 숫자를 그리세요.';
+        document.getElementById('predict-btn').disabled = false;
+
+    } catch (err) {
+        statusEl.textContent = '오류: ' + err.message;
+        console.error(err);
+    }
+}
+
+// ── 예측 ──────────────────────────────────────────────────────
+async function predict() {
+    if (!model) return;
+
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+
+    // 그려진 픽셀 여부 확인
+    let hasContent = false;
+    for (let i = 0; i < imgData.length; i += 4) {
+        if (imgData[i] > 10) { hasContent = true; break; }
+    }
+    if (!hasContent) return;
+
+    // 바운딩 박스 계산
+    let minX = canvas.width, maxX = 0, minY = canvas.height, maxY = 0;
+    for (let y = 0; y < canvas.height; y++) {
+        for (let x = 0; x < canvas.width; x++) {
+            if (imgData[(y * canvas.width + x) * 4] > 10) {
+                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                if (y < minY) minY = y; if (y > maxY) maxY = y;
+            }
+        }
+    }
+
+    // 여백 추가
+    const pad = 20;
+    minX = Math.max(0, minX - pad); maxX = Math.min(canvas.width  - 1, maxX + pad);
+    minY = Math.max(0, minY - pad); maxY = Math.min(canvas.height - 1, maxY + pad);
+
+    const w    = maxX - minX + 1;
+    const h    = maxY - minY + 1;
+    const side = Math.max(w, h);
+
+    // ── 오프스크린 28×28 캔버스에 크롭 후 렌더링 ──────────────
+    // 숫자를 20×20 영역에 맞추고 4px 여백으로 중앙 배치 (MNIST 포맷과 유사하게)
+    const off  = document.createElement('canvas');
+    off.width = 28; off.height = 28;
+    const oc = off.getContext('2d');
+    oc.fillStyle = 'black';
+    oc.fillRect(0, 0, 28, 28);
+
+    const scale   = 20 / side;
+    const offsetX = (28 - w * scale) / 2;
+    const offsetY = (28 - h * scale) / 2;
+    oc.drawImage(canvas, minX, minY, w, h, offsetX, offsetY, w * scale, h * scale);
+
+    // ── 미리보기 캔버스에 복사 (사용자가 모델이 보는 이미지 확인) ──
+    pctx.clearRect(0, 0, 28, 28);
+    pctx.drawImage(off, 0, 0);
+
+    // ── 픽셀 → Float32 텐서 변환 ──────────────────────────────
+    const small = oc.getImageData(0, 0, 28, 28).data;
+    const input = new Float32Array(784);
+    for (let i = 0; i < 784; i++) input[i] = small[i * 4] / 255;
+
+    // 예측
+    const tensor = tf.tensor4d(input, [1, 28, 28, 1]);
+    const predTensor = model.predict(tensor);
+    const probs = Array.from(await predTensor.data());
+    tensor.dispose();
+    predTensor.dispose();
+
+    const digit      = probs.indexOf(Math.max(...probs));
+    const confidence = probs[digit];
+
+    document.getElementById('result-digit').textContent = digit;
+    document.getElementById('confidence').textContent   = `신뢰도: ${(confidence * 100).toFixed(1)}%`;
+
+    for (let i = 0; i < 10; i++) {
+        const pct = Math.round(probs[i] * 100);
+        barFills[i].style.width      = pct + '%';
+        barFills[i].style.background = i === digit ? '#F1C40F' : BAR_COLORS[i];
+        barPcts[i].textContent       = pct + '%';
+    }
+}
+
+// 앱 시작
+init();
+</script>
+</body>
+</html>
