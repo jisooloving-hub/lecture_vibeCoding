@@ -1,0 +1,387 @@
+/* ── CSS 변수 (라이트 테마) ── */
+:root {
+  --bg-page:      #f0f2f5;
+  --bg-card:      #ffffff;
+  --text-main:    #1a1a1a;
+  --text-sub:     #666666;
+  --text-muted:   #aaaaaa;
+  --border:       #e0e0e0;
+  --input-bg:     #fafafa;
+  --tab-hover:    #f0f2f5;
+  --tab-color:    #888888;
+  --shadow:       rgba(0,0,0,0.06);
+  --accent:       #4f8ef7;
+  --accent-hover: #3a7de0;
+  --progress-bg:  #e9ecef;
+  --delete-hover-bg: #fff5f5;
+}
+
+/* ── 다크 테마 ── */
+body.dark {
+  --bg-page:      #0f1117;
+  --bg-card:      #1e2130;
+  --text-main:    #e8eaf0;
+  --text-sub:     #9aa0b4;
+  --text-muted:   #555d75;
+  --border:       #2e3347;
+  --input-bg:     #252839;
+  --tab-hover:    #252839;
+  --tab-color:    #7a8299;
+  --shadow:       rgba(0,0,0,0.3);
+  --accent:       #5b9cf6;
+  --accent-hover: #4a87e0;
+  --progress-bg:  #2e3347;
+  --delete-hover-bg: #2e1a1a;
+}
+
+/* ── 리셋 & 기본 ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg-page);
+  color: var(--text-main);
+  min-height: 100vh;
+  padding: 24px 16px;
+  transition: background 0.2s, color 0.2s;
+}
+
+/* ── 컨테이너 ── */
+.container {
+  max-width: 560px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── 헤더 ── */
+header {
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+header h1 {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+#darkToggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 18px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  line-height: 1.4;
+}
+
+#darkToggle:hover {
+  background: var(--tab-hover);
+}
+
+.progress-text {
+  font-size: 13px;
+  color: var(--text-sub);
+  margin-bottom: 8px;
+}
+
+.progress-bar-bg {
+  background: var(--progress-bg);
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  width: 0%;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.progress-bar-fill.complete {
+  background: #34c96c;
+}
+
+/* ── 카테고리 필터 탭 ── */
+.filter-tabs {
+  display: flex;
+  gap: 8px;
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.tab {
+  flex: 1;
+  padding: 8px 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--tab-color);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab:hover {
+  background: var(--tab-hover);
+  color: var(--text-main);
+}
+
+.tab.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ── 입력 영역 ── */
+.input-area {
+  display: flex;
+  gap: 8px;
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.input-area select {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  background: var(--input-bg);
+  color: var(--text-main);
+  cursor: pointer;
+  outline: none;
+}
+
+.input-area input[type="text"] {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 15px;
+  background: var(--input-bg);
+  color: var(--text-main);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input-area input[type="text"]:focus {
+  border-color: var(--accent);
+}
+
+.input-area input[type="text"]::placeholder {
+  color: var(--text-muted);
+}
+
+.input-area button {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.input-area button:hover {
+  background: var(--accent-hover);
+}
+
+/* ── 할 일 목록 ── */
+.todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+}
+
+/* ── 할 일 카드 ── */
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 2px 8px var(--shadow);
+  transition: opacity 0.2s;
+}
+
+.todo-item.done {
+  opacity: 0.55;
+}
+
+.todo-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* 카테고리 뱃지 */
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.badge-업무 { background: #dbeafe; color: #1d4ed8; }
+.badge-개인 { background: #dcfce7; color: #15803d; }
+.badge-공부 { background: #ffedd5; color: #c2410c; }
+
+/* 텍스트 */
+.todo-text {
+  flex: 1;
+  font-size: 15px;
+  cursor: pointer;
+  color: var(--text-main);
+}
+
+.todo-item.done .todo-text {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+/* 삭제 버튼 */
+.delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.delete-btn:hover {
+  color: #e53e3e;
+  background: var(--delete-hover-bg);
+}
+
+/* ── 탭 항목 수 뱃지 ── */
+.tab::after {
+  content: attr(data-count);
+  display: inline-block;
+  margin-left: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(0,0,0,0.08);
+  color: inherit;
+  border-radius: 999px;
+  padding: 1px 6px;
+  min-width: 18px;
+  text-align: center;
+}
+
+body.dark .tab::after {
+  background: rgba(255,255,255,0.08);
+}
+
+.tab.active::after {
+  background: rgba(255,255,255,0.25);
+}
+
+/* ── 빈 상태 메시지 ── */
+.empty-state {
+  text-align: center;
+  padding: 40px 0;
+  color: var(--text-muted);
+  font-size: 15px;
+  background: var(--bg-card);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+/* ── 데이터 내보내기/가져오기 ── */
+.data-io {
+  display: flex;
+  gap: 8px;
+}
+
+.data-io button,
+.data-io label {
+  flex: 1;
+  padding: 10px 0;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+#exportBtn {
+  background: var(--bg-card);
+  color: var(--accent);
+  border: 1.5px solid var(--accent);
+}
+
+#exportBtn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+#importLabel {
+  background: var(--bg-card);
+  color: var(--text-sub);
+  border: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#importLabel:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#importFile {
+  display: none;
+}
+
+/* ── 자동 분류 힌트 ── */
+.classify-hint {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 600;
+  min-height: 18px;
+  padding: 0 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+/* ── 체크박스 hover ── */
+.todo-item input[type="checkbox"]:hover {
+  outline: 2px solid var(--accent);
+  border-radius: 3px;
+}
